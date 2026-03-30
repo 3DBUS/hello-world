@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Personal Wealth Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: #0f1117;
+      color: #e2e8f0;
+      min-height: 100vh;
+    }
+
+    header {
+      background: linear-gradient(135deg, #1a1f2e, #252d3d);
+      padding: 20px 32px;
+      border-bottom: 1px solid #2d3748;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    header h1 { font-size: 1.5rem; font-weight: 700; color: #63b3ed; }
+    header span { font-size: 0.85rem; color: #718096; }
+
+    main { padding: 28px 32px; max-width: 1400px; margin: 0 auto; }
+
+    /* Upload Zone */
+    .upload-zone {
+      border: 2px dashed #4a5568;
+      border-radius: 12px;
+      padding: 40px;
+      text-align: center;
+      background: #1a1f2e;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+      margin-bottom: 28px;
+    }
+    .upload-zone:hover, .upload-zone.drag-over {
+      border-color: #63b3ed;
+      background: #1e2535;
+    }
+    .upload-zone svg { color: #4a5568; margin-bottom: 12px; }
+    .upload-zone p { color: #a0aec0; font-size: 0.95rem; }
+    .upload-zone p strong { color: #63b3ed; }
+    .upload-zone .hint {
+      font-size: 0.78rem;
+      color: #4a5568;
+      margin-top: 8px;
+    }
+    #fileInput { display: none; }
+
+    /* Sample button */
+    .btn-sample {
+      margin-top: 14px;
+      background: #2d3748;
+      color: #a0aec0;
+      border: 1px solid #4a5568;
+      padding: 8px 18px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 0.82rem;
+      transition: background 0.2s;
+    }
+    .btn-sample:hover { background: #374151; color: #e2e8f0; }
+
+    /* Summary Cards */
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+      margin-bottom: 28px;
+    }
+    .card {
+      background: #1a1f2e;
+      border-radius: 12px;
+      padding: 20px 22px;
+      border: 1px solid #2d3748;
+    }
+    .card .label {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #718096;
+      margin-bottom: 8px;
+    }
+    .card .value {
+      font-size: 1.6rem;
+      font-weight: 700;
+    }
+    .card .sub { font-size: 0.78rem; color: #718096; margin-top: 4px; }
+    .income .value  { color: #68d391; }
+    .expense .value { color: #fc8181; }
+    .net.positive .value { color: #63b3ed; }
+    .net.negative .value { color: #f6ad55; }
+    .savings .value { color: #b794f4; }
+
+    /* Charts row */
+    .charts {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      margin-bottom: 28px;
+    }
+    @media (max-width: 768px) { .charts { grid-template-columns: 1fr; } }
+
+    .chart-card {
+      background: #1a1f2e;
+      border-radius: 12px;
+      border: 1px solid #2d3748;
+      padding: 20px;
+    }
+    .chart-card h3 {
+      font-size: 0.9rem;
+      color: #a0aec0;
+      margin-bottom: 16px;
+      font-weight: 600;
+    }
+    .chart-wrap { position: relative; height: 240px; }
+
+    /* Transactions table */
+    .table-card {
+      background: #1a1f2e;
+      border-radius: 12px;
+      border: 1px solid #2d3748;
+      padding: 20px;
+    }
+    .table-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .table-header h3 { font-size: 0.9rem; color: #a0aec0; font-weight: 600; }
+
+    .filters { display: flex; gap: 10px; flex-wrap: wrap; }
+    .filters select, .filters input {
+      background: #252d3d;
+      border: 1px solid #2d3748;
+      color: #e2e8f0;
+      padding: 6px 12px;
+      border-radius: 8px;
+      font-size: 0.82rem;
+      outline: none;
+    }
+    .filters select:focus, .filters input:focus { border-color: #63b3ed; }
+
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    thead th {
+      text-align: left;
+      padding: 10px 12px;
+      color: #718096;
+      font-weight: 600;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      border-bottom: 1px solid #2d3748;
+    }
+    tbody tr { border-bottom: 1px solid #1e2535; transition: background 0.15s; }
+    tbody tr:hover { background: #1e2535; }
+    tbody td { padding: 10px 12px; }
+    .badge {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: 20px;
+      font-size: 0.72rem;
+      font-weight: 600;
+    }
+    .badge-income  { background: #1c4532; color: #68d391; }
+    .badge-expense { background: #4a1515; color: #fc8181; }
+    .amount-income  { color: #68d391; font-weight: 600; }
+    .amount-expense { color: #fc8181; font-weight: 600; }
+
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+      color: #4a5568;
+    }
+    .empty-state svg { margin-bottom: 14px; opacity: 0.4; }
+    .empty-state p { font-size: 0.9rem; }
+
+    #dashboard { display: none; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Wealth Dashboard</h1>
+  <span id="fileNameLabel">No file loaded</span>
+</header>
+
+<main>
+  <!-- Upload -->
+  <div class="upload-zone" id="dropZone">
+    <input type="file" id="fileInput" accept=".csv" />
+    <svg width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round"
+        d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/>
+    </svg>
+    <p><strong>Click to upload</strong> or drag & drop your CSV</p>
+    <p class="hint">Expected columns: <code>Date, Description, Category, Amount, Type</code> &nbsp;(Type = income or expense)</p>
+    <button class="btn-sample" id="sampleBtn">Load sample data</button>
+  </div>
+
+  <!-- Dashboard (hidden until data loaded) -->
+  <div id="dashboard">
+    <!-- Summary cards -->
+    <div class="cards">
+      <div class="card income">
+        <div class="label">Total Income</div>
+        <div class="value" id="totalIncome">$0</div>
+        <div class="sub" id="incomeCount">0 transactions</div>
+      </div>
+      <div class="card expense">
+        <div class="label">Total Expenses</div>
+        <div class="value" id="totalExpense">$0</div>
+        <div class="sub" id="expenseCount">0 transactions</div>
+      </div>
+      <div class="card net" id="netCard">
+        <div class="label">Net Balance</div>
+        <div class="value" id="netBalance">$0</div>
+        <div class="sub">Income minus expenses</div>
+      </div>
+      <div class="card savings">
+        <div class="label">Savings Rate</div>
+        <div class="value" id="savingsRate">0%</div>
+        <div class="sub">% of income saved</div>
+      </div>
+    </div>
+
+    <!-- Charts -->
+    <div class="charts">
+      <div class="chart-card">
+        <h3>Income vs Expenses Over Time</h3>
+        <div class="chart-wrap"><canvas id="lineChart"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <h3>Expense Breakdown by Category</h3>
+        <div class="chart-wrap"><canvas id="pieChart"></canvas></div>
+      </div>
+    </div>
+
+    <!-- Transactions -->
+    <div class="table-card">
+      <div class="table-header">
+        <h3>Transactions</h3>
+        <div class="filters">
+          <select id="filterType">
+            <option value="">All Types</option>
+            <option value="income">Income</option>
+            <option value="expense">Expense</option>
+          </select>
+          <select id="filterCategory"><option value="">All Categories</option></select>
+          <input type="text" id="filterSearch" placeholder="Search description..." />
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Description</th>
+              <th>Category</th>
+              <th>Type</th>
+              <th>Amount</th>
+            </tr>
+          </thead>
+          <tbody id="txBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Empty state before upload -->
+  <div id="emptyState">
+    <div class="empty-state">
+      <svg width="56" height="56" fill="none" stroke="#718096" stroke-width="1.2" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round"
+          d="M9 17v-2m3 2v-4m3 4v-6M5.25 7.5A2.25 2.25 0 017.5 5.25h9A2.25 2.25 0 0118.75 7.5v9a2.25 2.25 0 01-2.25 2.25h-9A2.25 2.25 0 015.25 16.5v-9z"/>
+      </svg>
+      <p>Upload a CSV file to see your wealth dashboard</p>
+    </div>
+  </div>
+</main>
+
+<script>
+  // ── Sample data ──────────────────────────────────────────────────────────────
+  const SAMPLE_CSV = `Date,Description,Category,Amount,Type
+2024-01-05,Salary,Salary,4500,income
+2024-01-10,Freelance project,Freelance,800,income
+2024-01-12,Rent,Housing,1200,expense
+2024-01-14,Groceries,Food,180,expense
+2024-01-16,Netflix,Entertainment,15,expense
+2024-01-18,Electricity bill,Utilities,90,expense
+2024-01-20,Restaurant dinner,Food,65,expense
+2024-01-22,Gym membership,Health,50,expense
+2024-01-25,Fuel,Transport,60,expense
+2024-01-28,Online course,Education,120,expense
+2024-02-05,Salary,Salary,4500,income
+2024-02-08,Bonus,Salary,500,income
+2024-02-12,Rent,Housing,1200,expense
+2024-02-14,Groceries,Food,210,expense
+2024-02-17,Cinema,Entertainment,30,expense
+2024-02-20,Water bill,Utilities,40,expense
+2024-02-22,Doctor visit,Health,80,expense
+2024-02-24,Uber,Transport,25,expense
+2024-02-26,Clothes,Shopping,150,expense
+2024-03-05,Salary,Salary,4500,income
+2024-03-07,Freelance project,Freelance,600,income
+2024-03-12,Rent,Housing,1200,expense
+2024-03-15,Groceries,Food,195,expense
+2024-03-18,Spotify,Entertainment,10,expense
+2024-03-20,Internet,Utilities,55,expense
+2024-03-22,Pharmacy,Health,35,expense
+2024-03-25,Train ticket,Transport,40,expense
+2024-03-28,Books,Education,45,expense`;
+
+  // ── State ─────────────────────────────────────────────────────────────────
+  let allData = [];
+  let lineChart = null;
+  let pieChart  = null;
+
+  // ── CSV Parser ─────────────────────────────────────────────────────────────
+  function parseCSV(text) {
+    const lines = text.trim().split(/\r?\n/);
+    if (lines.length < 2) return [];
+    const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+    const idx = {
+      date:        headers.indexOf('date'),
+      description: headers.indexOf('description'),
+      category:    headers.indexOf('category'),
+      amount:      headers.indexOf('amount'),
+      type:        headers.indexOf('type'),
+    };
+    // Validate required columns
+    const missing = Object.entries(idx).filter(([,v]) => v === -1).map(([k]) => k);
+    if (missing.length) {
+      alert(`Missing columns: ${missing.join(', ')}\n\nExpected: Date, Description, Category, Amount, Type`);
+      return [];
+    }
+    return lines.slice(1).map(line => {
+      const cols = line.split(',').map(c => c.trim().replace(/^"|"$/g, ''));
+      return {
+        date:        cols[idx.date]        || '',
+        description: cols[idx.description] || '',
+        category:    cols[idx.category]    || 'Uncategorized',
+        amount:      parseFloat(cols[idx.amount]) || 0,
+        type:        (cols[idx.type] || '').toLowerCase(),
+      };
+    }).filter(r => r.date && (r.type === 'income' || r.type === 'expense'));
+  }
+
+  // ── Format currency ────────────────────────────────────────────────────────
+  function fmt(n) {
+    return '$' + Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  // ── Render dashboard ───────────────────────────────────────────────────────
+  function render(data) {
+    if (!data.length) return;
+    allData = data;
+
+    document.getElementById('emptyState').style.display  = 'none';
+    document.getElementById('dashboard').style.display   = 'block';
+
+    renderCards(data);
+    renderLineChart(data);
+    renderPieChart(data);
+    populateCategoryFilter(data);
+    renderTable(data);
+
+    // Wire up filters
+    ['filterType','filterCategory','filterSearch'].forEach(id => {
+      document.getElementById(id).addEventListener('input', applyFilters);
+    });
+  }
+
+  function renderCards(data) {
+    const income  = data.filter(r => r.type === 'income').reduce((s,r) => s + r.amount, 0);
+    const expense = data.filter(r => r.type === 'expense').reduce((s,r) => s + r.amount, 0);
+    const net     = income - expense;
+    const rate    = income > 0 ? ((net / income) * 100).toFixed(1) : 0;
+
+    document.getElementById('totalIncome').textContent  = fmt(income);
+    document.getElementById('totalExpense').textContent = fmt(expense);
+    document.getElementById('netBalance').textContent   = (net >= 0 ? '+' : '-') + fmt(net);
+    document.getElementById('savingsRate').textContent  = rate + '%';
+    document.getElementById('incomeCount').textContent  = data.filter(r=>r.type==='income').length + ' transactions';
+    document.getElementById('expenseCount').textContent = data.filter(r=>r.type==='expense').length + ' transactions';
+
+    const netCard = document.getElementById('netCard');
+    netCard.className = 'card net ' + (net >= 0 ? 'positive' : 'negative');
+  }
+
+  function groupByMonth(data) {
+    const months = {};
+    data.forEach(r => {
+      const m = r.date.slice(0, 7); // YYYY-MM
+      if (!months[m]) months[m] = { income: 0, expense: 0 };
+      months[m][r.type] += r.amount;
+    });
+    return Object.entries(months).sort(([a],[b]) => a.localeCompare(b));
+  }
+
+  function renderLineChart(data) {
+    const grouped = groupByMonth(data);
+    const labels  = grouped.map(([m]) => {
+      const [y, mo] = m.split('-');
+      return new Date(+y, +mo - 1).toLocaleString('default', { month: 'short', year: '2-digit' });
+    });
+    const incomes  = grouped.map(([,v]) => v.income);
+    const expenses = grouped.map(([,v]) => v.expense);
+
+    if (lineChart) lineChart.destroy();
+    lineChart = new Chart(document.getElementById('lineChart'), {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [
+          {
+            label: 'Income',
+            data: incomes,
+            borderColor: '#68d391',
+            backgroundColor: 'rgba(104,211,145,0.12)',
+            tension: 0.35,
+            fill: true,
+            pointRadius: 4,
+          },
+          {
+            label: 'Expenses',
+            data: expenses,
+            borderColor: '#fc8181',
+            backgroundColor: 'rgba(252,129,129,0.10)',
+            tension: 0.35,
+            fill: true,
+            pointRadius: 4,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { labels: { color: '#a0aec0', boxWidth: 12 } } },
+        scales: {
+          x: { ticks: { color: '#718096' }, grid: { color: '#1e2535' } },
+          y: {
+            ticks: { color: '#718096', callback: v => '$' + v.toLocaleString() },
+            grid: { color: '#1e2535' },
+          },
+        },
+      },
+    });
+  }
+
+  function renderPieChart(data) {
+    const expenses = data.filter(r => r.type === 'expense');
+    const byCategory = {};
+    expenses.forEach(r => {
+      byCategory[r.category] = (byCategory[r.category] || 0) + r.amount;
+    });
+    const sorted  = Object.entries(byCategory).sort(([,a],[,b]) => b - a);
+    const labels  = sorted.map(([k]) => k);
+    const values  = sorted.map(([,v]) => v);
+    const palette = ['#fc8181','#f6ad55','#faf089','#68d391','#63b3ed','#b794f4','#f687b3','#76e4f7','#a3bffa','#fc8181'];
+
+    if (pieChart) pieChart.destroy();
+    pieChart = new Chart(document.getElementById('pieChart'), {
+      type: 'doughnut',
+      data: {
+        labels,
+        datasets: [{
+          data: values,
+          backgroundColor: labels.map((_, i) => palette[i % palette.length]),
+          borderColor: '#1a1f2e',
+          borderWidth: 2,
+        }],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        cutout: '60%',
+        plugins: {
+          legend: {
+            position: 'right',
+            labels: { color: '#a0aec0', boxWidth: 12, font: { size: 11 } },
+          },
+          tooltip: {
+            callbacks: {
+              label: ctx => ` ${ctx.label}: $${ctx.parsed.toLocaleString('en-US', {minimumFractionDigits:2})}`
+            }
+          }
+        },
+      },
+    });
+  }
+
+  function populateCategoryFilter(data) {
+    const cats = [...new Set(data.map(r => r.category))].sort();
+    const sel  = document.getElementById('filterCategory');
+    sel.innerHTML = '<option value="">All Categories</option>';
+    cats.forEach(c => {
+      const o = document.createElement('option');
+      o.value = c; o.textContent = c;
+      sel.appendChild(o);
+    });
+  }
+
+  function applyFilters() {
+    const type   = document.getElementById('filterType').value;
+    const cat    = document.getElementById('filterCategory').value;
+    const search = document.getElementById('filterSearch').value.toLowerCase();
+    const filtered = allData.filter(r => {
+      if (type   && r.type     !== type)                             return false;
+      if (cat    && r.category !== cat)                              return false;
+      if (search && !r.description.toLowerCase().includes(search))  return false;
+      return true;
+    });
+    renderTable(filtered);
+  }
+
+  function renderTable(data) {
+    const tbody = document.getElementById('txBody');
+    if (!data.length) {
+      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:30px;color:#4a5568;">No transactions match your filters</td></tr>';
+      return;
+    }
+    const sorted = [...data].sort((a,b) => b.date.localeCompare(a.date));
+    tbody.innerHTML = sorted.map(r => `
+      <tr>
+        <td>${r.date}</td>
+        <td>${r.description}</td>
+        <td>${r.category}</td>
+        <td><span class="badge badge-${r.type}">${r.type}</span></td>
+        <td class="amount-${r.type}">${r.type === 'expense' ? '-' : '+'}${fmt(r.amount)}</td>
+      </tr>`).join('');
+  }
+
+  // ── File input ─────────────────────────────────────────────────────────────
+  document.getElementById('dropZone').addEventListener('click', e => {
+    if (e.target.id !== 'sampleBtn') document.getElementById('fileInput').click();
+  });
+
+  document.getElementById('fileInput').addEventListener('change', e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    document.getElementById('fileNameLabel').textContent = file.name;
+    const reader = new FileReader();
+    reader.onload = ev => render(parseCSV(ev.target.result));
+    reader.readAsText(file);
+  });
+
+  // Drag-and-drop
+  const zone = document.getElementById('dropZone');
+  zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
+  zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+  zone.addEventListener('drop', e => {
+    e.preventDefault();
+    zone.classList.remove('drag-over');
+    const file = e.dataTransfer.files[0];
+    if (!file || !file.name.endsWith('.csv')) return alert('Please drop a .csv file.');
+    document.getElementById('fileNameLabel').textContent = file.name;
+    const reader = new FileReader();
+    reader.onload = ev => render(parseCSV(ev.target.result));
+    reader.readAsText(file);
+  });
+
+  // Sample data button
+  document.getElementById('sampleBtn').addEventListener('click', e => {
+    e.stopPropagation();
+    document.getElementById('fileNameLabel').textContent = 'sample-data.csv';
+    render(parseCSV(SAMPLE_CSV));
+  });
+</script>
+</body>
+</html>
