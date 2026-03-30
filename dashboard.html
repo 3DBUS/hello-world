@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Personal Wealth Dashboard</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://accounts.google.com/gsi/client" async></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -213,9 +214,144 @@
     .empty-state p { font-size: 0.9rem; }
 
     #dashboard { display: none; }
+
+    /* ── Google Drive ── */
+    .btn-drive {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      background: #1a73e8;
+      color: #fff;
+      border: none;
+      padding: 7px 16px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 0.82rem;
+      font-weight: 600;
+      transition: background 0.2s, opacity 0.2s;
+      white-space: nowrap;
+    }
+    .btn-drive:hover    { background: #1557b0; }
+    .btn-drive:disabled { opacity: 0.6; cursor: default; background: #1557b0; }
+
+    .sync-status { font-size: 0.78rem; padding: 4px 10px; border-radius: 6px; display: none; white-space: nowrap; }
+    .sync-status.syncing { display: inline; color: #f6ad55; background: #2d2410; }
+    .sync-status.synced  { display: inline; color: #68d391; background: #1c3028; }
+    .sync-status.error   { display: inline; color: #fc8181; background: #2d1515; }
+
+    /* ── Setup modal ── */
+    #setupModal {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.72);
+      z-index: 1000;
+      display: flex; align-items: center; justify-content: center;
+      padding: 20px;
+    }
+    #setupModal.hidden { display: none; }
+    .modal-box {
+      background: #1a1f2e;
+      border: 1px solid #2d3748;
+      border-radius: 14px;
+      padding: 28px 32px;
+      max-width: 580px;
+      width: 100%;
+      box-shadow: 0 8px 40px rgba(0,0,0,0.55);
+    }
+    .modal-box h2   { font-size: 1.15rem; color: #63b3ed; margin-bottom: 6px; }
+    .modal-box .sub { color: #718096; font-size: 0.82rem; margin-bottom: 20px; line-height: 1.5; }
+    .warn-box {
+      background: #2d2410; border: 1px solid #4a3520;
+      border-radius: 8px; padding: 10px 14px;
+      font-size: 0.8rem; color: #f6ad55; margin-bottom: 18px; line-height: 1.6;
+    }
+    .warn-box code { background: rgba(0,0,0,0.3); padding: 1px 5px; border-radius: 4px; font-size: 0.78rem; }
+    .steps { list-style: none; counter-reset: steps; margin-bottom: 20px; }
+    .steps li {
+      counter-increment: steps;
+      padding: 9px 0 9px 36px;
+      position: relative;
+      color: #a0aec0;
+      font-size: 0.84rem;
+      border-bottom: 1px solid #1e2535;
+      line-height: 1.5;
+    }
+    .steps li:last-child { border: none; }
+    .steps li::before {
+      content: counter(steps);
+      position: absolute; left: 0; top: 9px;
+      width: 22px; height: 22px;
+      background: #252d3d; border-radius: 50%;
+      text-align: center; line-height: 22px;
+      font-size: 0.75rem; font-weight: 700; color: #63b3ed;
+    }
+    .steps li code { color: #a3bffa; background: #252d3d; padding: 1px 5px; border-radius: 4px; font-size: 0.8rem; }
+    .steps li strong { color: #e2e8f0; }
+    .modal-input-row { display: flex; gap: 10px; margin-bottom: 14px; }
+    .modal-input-row input {
+      flex: 1;
+      background: #252d3d; border: 1px solid #2d3748;
+      color: #e2e8f0; padding: 8px 12px;
+      border-radius: 8px; font-size: 0.82rem; outline: none;
+      font-family: monospace;
+    }
+    .modal-input-row input:focus { border-color: #63b3ed; }
+    .modal-input-row input::placeholder { color: #4a5568; }
+    .modal-footer { display: flex; justify-content: flex-end; gap: 10px; }
+    .btn-primary {
+      background: #1a73e8; color: #fff; border: none;
+      padding: 8px 20px; border-radius: 8px;
+      cursor: pointer; font-size: 0.84rem; font-weight: 600;
+      transition: background 0.2s;
+    }
+    .btn-primary:hover { background: #1557b0; }
+    .btn-cancel {
+      background: transparent; color: #718096;
+      border: 1px solid #2d3748; padding: 8px 16px;
+      border-radius: 8px; cursor: pointer; font-size: 0.84rem;
+      transition: color 0.2s;
+    }
+    .btn-cancel:hover { color: #a0aec0; }
+    .disconnect-row { margin-top: 12px; text-align: right; }
+    .btn-disconnect {
+      background: transparent; color: #fc8181;
+      border: none; cursor: pointer; font-size: 0.78rem;
+      text-decoration: underline; padding: 0;
+    }
   </style>
 </head>
 <body>
+
+<!-- Google Drive setup modal -->
+<div id="setupModal" class="hidden">
+  <div class="modal-box">
+    <h2>Connect Google Drive</h2>
+    <p class="sub">Your transactions will be saved to a file in your Google Drive (<code>wealth-dashboard-data.json</code>) and stay in sync across all your devices.</p>
+
+    <div class="warn-box">
+      <strong>Before you start:</strong> Google OAuth requires this page to be served over HTTP, not opened directly from a file.<br>
+      Run a local server first: <code>python3 -m http.server 8080</code> then open <code>http://localhost:8080/dashboard.html</code>
+    </div>
+
+    <ol class="steps">
+      <li>Go to <strong>console.cloud.google.com</strong> and create a new project</li>
+      <li>Search for <strong>Google Drive API</strong> and click <strong>Enable</strong></li>
+      <li>Go to <strong>APIs &amp; Services → Credentials → Create Credentials → OAuth client ID</strong></li>
+      <li>Choose <strong>Web application</strong>. Under <em>Authorized JavaScript origins</em> add <code>http://localhost:8080</code></li>
+      <li>Click <strong>Create</strong>, then copy the <strong>Client ID</strong> (ends in <code>.apps.googleusercontent.com</code>)</li>
+    </ol>
+
+    <div class="modal-input-row">
+      <input type="text" id="clientIdInput" placeholder="Paste Client ID here  (…apps.googleusercontent.com)" />
+    </div>
+    <div class="modal-footer">
+      <button class="btn-cancel" id="modalCancelBtn">Cancel</button>
+      <button class="btn-primary" id="modalSaveBtn">Save &amp; Connect</button>
+    </div>
+    <div class="disconnect-row">
+      <button class="btn-disconnect" id="disconnectBtn">Forget saved Client ID</button>
+    </div>
+  </div>
+</div>
 
 <!-- Toast notification -->
 <div id="toast">
@@ -228,6 +364,18 @@
 <header>
   <h1>Wealth Dashboard</h1>
   <div class="header-right">
+    <span class="sync-status" id="syncStatus"></span>
+    <button class="btn-drive" id="driveBtn">
+      <svg width="14" height="14" viewBox="0 0 87.3 78" fill="currentColor">
+        <path d="M6.6 66.85l3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3L27.5 53H0c0 1.55.4 3.1 1.2 4.5z" fill="#0066da"/>
+        <path d="M43.65 25L29.9 0c-1.35.8-2.5 1.9-3.3 3.3L1.2 48.5C.4 49.9 0 51.45 0 53h27.5z" fill="#00ac47"/>
+        <path d="M73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75L86.1 57.5c.8-1.4 1.2-2.95 1.2-4.5H59.8l5.85 11.5z" fill="#ea4335"/>
+        <path d="M43.65 25L57.4 0H29.9z" fill="#00832d"/>
+        <path d="M59.8 53H87.3L73.55 29.3 57.4 0 43.65 25 57.4 53z" fill="#2684fc"/>
+        <path d="M13.8 76.8c1.35.8 2.9 1.2 4.5 1.2h50.7c1.6 0 3.15-.45 4.5-1.2L59.8 53H27.5z" fill="#ffba00"/>
+      </svg>
+      Connect Google Drive
+    </button>
     <span id="recordCount">No data loaded</span>
     <button class="btn-clear" id="clearBtn">Clear all data</button>
   </div>
@@ -495,6 +643,7 @@
 
     saveToStorage(merged);
     render(merged);
+    pushToDrive();
 
     if (showNotification) showToast(added, duplicates, merged.length);
     // Reset file input so the same file can be re-uploaded (will just show all dupes)
@@ -713,13 +862,207 @@
     localStorage.removeItem(STORAGE_KEY);
     allData = [];
     render([]);
+    // Also wipe Drive file reference so next connect creates a fresh file
+    gdFileId = null;
+    localStorage.removeItem(GD_FILE_KEY);
+    pushToDrive();
   });
 
   // ── Boot: restore saved data ───────────────────────────────────────────────
   (function init() {
     const saved = loadFromStorage();
     if (saved.length) render(saved);
+
+    // Pre-fill Client ID input if already saved
+    const savedId = localStorage.getItem(GD_CLIENT_KEY);
+    if (savedId) document.getElementById('clientIdInput').value = savedId;
   })();
+
+  // ── Google Drive Integration ──────────────────────────────────────────────
+  const DRIVE_FILE    = 'wealth-dashboard-data.json';
+  const DRIVE_SCOPE   = 'https://www.googleapis.com/auth/drive.file';
+  const GD_CLIENT_KEY = 'gd_client_id';
+  const GD_FILE_KEY   = 'gd_file_id';
+
+  let gdClientId    = localStorage.getItem(GD_CLIENT_KEY) || '';
+  let gdAccessToken = null;
+  let gdFileId      = localStorage.getItem(GD_FILE_KEY)   || null;
+  let gdTokenClient = null;
+
+  // ── Drive fetch helpers ───────────────────────────────────────────────────
+  async function driveReq(url, opts = {}) {
+    const res = await fetch(url, {
+      ...opts,
+      headers: { Authorization: `Bearer ${gdAccessToken}`, ...(opts.headers || {}) },
+    });
+    if (res.status === 401) throw new Error('token_expired');
+    return res;
+  }
+
+  async function driveFindFile() {
+    const q   = encodeURIComponent(`name='${DRIVE_FILE}' and trashed=false`);
+    const res = await driveReq(
+      `https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,modifiedTime)&spaces=drive`
+    );
+    const json = await res.json();
+    return json.files && json.files.length ? json.files[0] : null;
+  }
+
+  async function driveReadFile(fileId) {
+    const res = await driveReq(
+      `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`
+    );
+    return res.json();
+  }
+
+  async function driveWriteFile(payload) {
+    const body = JSON.stringify(payload);
+    if (gdFileId) {
+      await driveReq(
+        `https://www.googleapis.com/upload/drive/v3/files/${gdFileId}?uploadType=media`,
+        { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body }
+      );
+    } else {
+      const meta = JSON.stringify({ name: DRIVE_FILE, mimeType: 'application/json' });
+      const form = new FormData();
+      form.append('metadata', new Blob([meta], { type: 'application/json' }));
+      form.append('media',    new Blob([body], { type: 'application/json' }));
+      const res  = await driveReq(
+        'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id',
+        { method: 'POST', body: form }
+      );
+      const json = await res.json();
+      gdFileId   = json.id;
+      localStorage.setItem(GD_FILE_KEY, gdFileId);
+    }
+  }
+
+  // ── Sync status display ───────────────────────────────────────────────────
+  function setSyncStatus(state, msg) {
+    const el = document.getElementById('syncStatus');
+    el.className  = 'sync-status ' + state;
+    el.textContent = msg;
+  }
+
+  // ── Full sync: pull Drive → merge local → push merged back ────────────────
+  async function syncFromDrive() {
+    setSyncStatus('syncing', 'Syncing...');
+    try {
+      const file = await driveFindFile();
+      if (file) {
+        gdFileId = file.id;
+        localStorage.setItem(GD_FILE_KEY, gdFileId);
+        const drivePayload = await driveReadFile(gdFileId);
+        if (drivePayload && Array.isArray(drivePayload.transactions)) {
+          const local          = loadFromStorage();
+          const { added, merged } = mergeData(local, drivePayload.transactions);
+          saveToStorage(merged);
+          render(merged);
+          if (added > 0) showToast(added, drivePayload.transactions.length - added, merged.length);
+        }
+      }
+      // Push the now-merged local data back up (also creates file if none existed)
+      await driveWriteFile({ transactions: allData, lastUpdated: new Date().toISOString() });
+      setSyncStatus('synced', 'Drive synced \u2713 ' + new Date().toLocaleTimeString());
+      const btn       = document.getElementById('driveBtn');
+      btn.innerHTML   = '\u2714 Drive connected';
+      btn.disabled    = true;
+    } catch (e) {
+      setSyncStatus('error', 'Sync failed — ' + e.message);
+      console.error('Drive sync error:', e);
+    }
+  }
+
+  // ── Push local data to Drive (called after every import / clear) ──────────
+  async function pushToDrive() {
+    if (!gdAccessToken) return;
+    setSyncStatus('syncing', 'Saving...');
+    try {
+      await driveWriteFile({ transactions: allData, lastUpdated: new Date().toISOString() });
+      setSyncStatus('synced', 'Drive saved \u2713 ' + new Date().toLocaleTimeString());
+    } catch (e) {
+      setSyncStatus('error', 'Drive save failed');
+      console.error('Drive push error:', e);
+    }
+  }
+
+  // ── Google Identity Services auth ─────────────────────────────────────────
+  function tryInitGoogleAuth() {
+    if (!gdClientId || !window.google?.accounts?.oauth2) return false;
+    gdTokenClient = google.accounts.oauth2.initTokenClient({
+      client_id: gdClientId,
+      scope:     DRIVE_SCOPE,
+      callback:  async (resp) => {
+        if (resp.error) { setSyncStatus('error', 'Auth failed: ' + resp.error); return; }
+        gdAccessToken = resp.access_token;
+        await syncFromDrive();
+      },
+    });
+    return true;
+  }
+
+  function requestDriveAccess() {
+    if (!gdTokenClient && !tryInitGoogleAuth()) {
+      alert(
+        'Google Identity Services is not loaded yet.\n\n' +
+        'Make sure you are serving this file over HTTP (not file://) and try again.\n\n' +
+        'Quick start: python3 -m http.server 8080'
+      );
+      return;
+    }
+    // Use '' prompt if we already have a file ID (silent re-auth); otherwise ask for consent
+    gdTokenClient.requestAccessToken({ prompt: gdFileId ? '' : 'consent' });
+  }
+
+  // ── Drive button click ────────────────────────────────────────────────────
+  document.getElementById('driveBtn').addEventListener('click', () => {
+    if (!gdClientId) {
+      document.getElementById('setupModal').classList.remove('hidden');
+    } else {
+      requestDriveAccess();
+    }
+  });
+
+  // ── Modal: save & connect ─────────────────────────────────────────────────
+  document.getElementById('modalSaveBtn').addEventListener('click', () => {
+    const val = document.getElementById('clientIdInput').value.trim();
+    if (!val || !val.includes('.apps.googleusercontent.com')) {
+      alert('Please enter a valid Google OAuth Client ID.\nIt should end in .apps.googleusercontent.com');
+      return;
+    }
+    gdClientId = val;
+    localStorage.setItem(GD_CLIENT_KEY, gdClientId);
+    document.getElementById('setupModal').classList.add('hidden');
+
+    if (tryInitGoogleAuth()) {
+      requestDriveAccess();
+    } else {
+      // GIS script may still be loading — retry once
+      setTimeout(() => {
+        if (tryInitGoogleAuth()) requestDriveAccess();
+        else alert('Google Identity Services failed to load.\nMake sure you are serving this file over HTTP, not file://');
+      }, 2000);
+    }
+  });
+
+  document.getElementById('modalCancelBtn').addEventListener('click', () => {
+    document.getElementById('setupModal').classList.add('hidden');
+  });
+
+  document.getElementById('disconnectBtn').addEventListener('click', () => {
+    if (!confirm('Forget saved Client ID and disconnect Google Drive?')) return;
+    gdClientId = '';
+    gdAccessToken = null;
+    gdFileId = null;
+    localStorage.removeItem(GD_CLIENT_KEY);
+    localStorage.removeItem(GD_FILE_KEY);
+    document.getElementById('clientIdInput').value = '';
+    document.getElementById('syncStatus').className = 'sync-status';
+    const btn = document.getElementById('driveBtn');
+    btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 87.3 78" fill="currentColor"><path d="M6.6 66.85l3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3L27.5 53H0c0 1.55.4 3.1 1.2 4.5z" fill="#0066da"/><path d="M43.65 25L29.9 0c-1.35.8-2.5 1.9-3.3 3.3L1.2 48.5C.4 49.9 0 51.45 0 53h27.5z" fill="#00ac47"/><path d="M73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75L86.1 57.5c.8-1.4 1.2-2.95 1.2-4.5H59.8l5.85 11.5z" fill="#ea4335"/><path d="M43.65 25L57.4 0H29.9z" fill="#00832d"/><path d="M59.8 53H87.3L73.55 29.3 57.4 0 43.65 25 57.4 53z" fill="#2684fc"/><path d="M13.8 76.8c1.35.8 2.9 1.2 4.5 1.2h50.7c1.6 0 3.15-.45 4.5-1.2L59.8 53H27.5z" fill="#ffba00"/></svg> Connect Google Drive';
+    btn.disabled = false;
+    document.getElementById('setupModal').classList.add('hidden');
+  });
 </script>
 </body>
 </html>
