@@ -1,0 +1,29 @@
+Date,Description,Category,Amount,Type
+2024-01-05,Salary,Salary,4500,income
+2024-01-10,Freelance project,Freelance,800,income
+2024-01-12,Rent,Housing,1200,expense
+2024-01-14,Groceries,Food,180,expense
+2024-01-16,Netflix,Entertainment,15,expense
+2024-01-18,Electricity bill,Utilities,90,expense
+2024-01-20,Restaurant dinner,Food,65,expense
+2024-01-22,Gym membership,Health,50,expense
+2024-01-25,Fuel,Transport,60,expense
+2024-01-28,Online course,Education,120,expense
+2024-02-05,Salary,Salary,4500,income
+2024-02-08,Bonus,Salary,500,income
+2024-02-12,Rent,Housing,1200,expense
+2024-02-14,Groceries,Food,210,expense
+2024-02-17,Cinema,Entertainment,30,expense
+2024-02-20,Water bill,Utilities,40,expense
+2024-02-22,Doctor visit,Health,80,expense
+2024-02-24,Uber,Transport,25,expense
+2024-02-26,Clothes,Shopping,150,expense
+2024-03-05,Salary,Salary,4500,income
+2024-03-07,Freelance project,Freelance,600,income
+2024-03-12,Rent,Housing,1200,expense
+2024-03-15,Groceries,Food,195,expense
+2024-03-18,Spotify,Entertainment,10,expense
+2024-03-20,Internet,Utilities,55,expense
+2024-03-22,Pharmacy,Health,35,expense
+2024-03-25,Train ticket,Transport,40,expense
+2024-03-28,Books,Education,45,expense
